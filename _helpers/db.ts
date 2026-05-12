@@ -14,11 +14,13 @@ async function initialize() {
     const user     = process.env['DB_USER']     || 'root';
     const password = process.env['DB_PASSWORD'] || '';
     const database = process.env['DB_NAME']     || 'node_mysql_api';
+    const useSSL   = process.env['DB_SSL'] === 'true';
 
-    // In production, skip CREATE DATABASE (managed hosts don't allow it)
+    // Only try to create DB locally — cPanel manages it already
     if (process.env['NODE_ENV'] !== 'production') {
         const connection = await mysql.createConnection({ host, port, user, password });
         await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
+        await connection.end();
     }
 
     const sequelize = new Sequelize(database, user, password, {
@@ -26,10 +28,28 @@ async function initialize() {
         host,
         port,
         logging: false,
-        dialectOptions: process.env['DB_SSL'] === 'true'
-            ? { ssl: { require: true, rejectUnauthorized: false } }
-            : {}
+        dialectOptions: useSSL ? {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false
+            }
+        } : {},
+        pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
+        }
     });
+
+    // Test connection
+    try {
+        await sequelize.authenticate();
+        console.log('✅ Database connection established successfully.');
+    } catch (error) {
+        console.error('❌ Unable to connect to the database:', error);
+        throw error;
+    }
 
     db.Account      = accountModel(sequelize);
     db.RefreshToken = refreshTokenModel(sequelize);
@@ -38,4 +58,5 @@ async function initialize() {
     db.RefreshToken.belongsTo(db.Account);
 
     await sequelize.sync();
+    console.log('✅ Database synced.');
 }
