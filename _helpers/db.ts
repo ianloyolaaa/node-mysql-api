@@ -1,4 +1,3 @@
-import config from '../config.json';
 import mysql from 'mysql2/promise';
 import { Sequelize } from 'sequelize';
 import accountModel from '../accounts/account.model';
@@ -7,58 +6,36 @@ import refreshTokenModel from '../accounts/refresh-token.model';
 const db: any = {};
 export default db;
 
-// run init safely
-initialize().catch(err => {
-  console.error('Database initialization failed:', err.message);
-});
+initialize();
 
 async function initialize() {
-  const { host, port, user, password, database } = config.database;
+    const host     = process.env['DB_HOST']     || 'localhost';
+    const port     = parseInt(process.env['DB_PORT'] || '3306');
+    const user     = process.env['DB_USER']     || 'root';
+    const password = process.env['DB_PASSWORD'] || '';
+    const database = process.env['DB_NAME']     || 'node_mysql_api';
 
-  try {
-    const connection = await mysql.createConnection({
-      host: host || '127.0.0.1',
-      port: port || 3306,
-      user: user || 'root',
-      password: password || '' // ← IMPORTANT for XAMPP
+    // In production, skip CREATE DATABASE (managed hosts don't allow it)
+    if (process.env['NODE_ENV'] !== 'production') {
+        const connection = await mysql.createConnection({ host, port, user, password });
+        await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
+    }
+
+    const sequelize = new Sequelize(database, user, password, {
+        dialect: 'mysql',
+        host,
+        port,
+        logging: false,
+        dialectOptions: process.env['DB_SSL'] === 'true'
+            ? { ssl: { require: true, rejectUnauthorized: false } }
+            : {}
     });
 
-    console.log(' MySQL connected');
-
-    // Create DB if not exists
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${database}\`;`);
-
-    // Sequelize connection
-    const sequelize = new Sequelize(database, user, password || '', {
-      dialect: 'mysql',
-      host: host || '127.0.0.1',
-      port: port || 3306,
-      logging: false
-    });
-
-    // Init models
-    db.Account = accountModel(sequelize);
+    db.Account      = accountModel(sequelize);
     db.RefreshToken = refreshTokenModel(sequelize);
 
-    // Relationships
     db.Account.hasMany(db.RefreshToken, { onDelete: 'CASCADE' });
     db.RefreshToken.belongsTo(db.Account);
 
-    // Sync DB
     await sequelize.sync();
-
-    console.log(' Database synced');
-  } catch (error: any) {
-    console.error(' DB ERROR:', error.message);
-
-    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error(' Fix: Check your MySQL username/password in config.json');
-    }
-
-    if (error.code === 'ECONNREFUSED') {
-      console.error(' Fix: Make sure MySQL is running (XAMPP)');
-    }
-
-    throw error; // keep crash for visibility
-  }
 }
