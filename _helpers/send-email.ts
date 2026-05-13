@@ -1,56 +1,64 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-export default async function sendEmail({ to, subject, html, from }: any) {
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-    // Use Resend if API key exists
-    const hasResend = !!process.env['RESEND_API_KEY'];
+export default async function sendEmail({
+    to,
+    subject,
+    html,
+    from
+}: any) {
 
-        if (hasResend) {
+    const hasResend = !!process.env.RESEND_API_KEY;
 
-        console.log('USING RESEND SMTP');
-
-        const transporter = nodemailer.createTransport({
-            host: 'smtp.resend.com',
-            port: 587,
-            secure: false,
-            auth: {
-                user: 'resend',
-                pass: process.env['RESEND_API_KEY']
-            }
-        } as any);
+    if (hasResend) {
 
         try {
 
-            const info = await transporter.sendMail({
-                from: from || process.env['EMAIL_FROM'],
-                to: [to],
+            const data = await resend.emails.send({
+                from: from || process.env.EMAIL_FROM,
+                to,
                 subject,
                 html
             });
 
-            console.log('EMAIL SENT:', info);
+            console.log('EMAIL SENT:', data);
 
-            return info;
+            return;
 
         } catch (err) {
 
-            console.error('RESEND SMTP ERROR:', err);
+            console.error('RESEND ERROR:', err);
             throw err;
         }
     }
 
-    // Default SMTP fallback
-    from = from || process.env['EMAIL_FROM'];
-
     const transporter = nodemailer.createTransport({
-        host: process.env['SMTP_HOST'],
-        port: parseInt(process.env['SMTP_PORT'] || '587'),
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT),
         secure: false,
-        auth: {
-            user: process.env['SMTP_USER'],
-            pass: process.env['SMTP_PASS']
-        }
-    } as any);
 
-    await transporter.sendMail({ from, to, subject, html });
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        }
+    });
+
+    try {
+
+        const info: any = await transporter.sendMail({
+            from: from || process.env.EMAIL_FROM,
+            to,
+            subject,
+            html
+        });
+
+        console.log('EMAIL SENT:', info.messageId);
+
+    } catch (err) {
+
+        console.error('EMAIL ERROR:', err);
+        throw err;
+    }
 }
