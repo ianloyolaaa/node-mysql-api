@@ -5,7 +5,9 @@ export default async function sendEmail({ to, subject, html, from }: any) {
     // Use Resend if API key exists
     const hasResend = !!process.env['RESEND_API_KEY'];
 
-    if (hasResend) {
+        if (hasResend) {
+
+        console.log('USING RESEND SMTP');
 
         const transporter = nodemailer.createTransport({
             host: 'smtp.resend.com',
@@ -17,12 +19,24 @@ export default async function sendEmail({ to, subject, html, from }: any) {
             }
         } as any);
 
-        return await transporter.sendMail({
-            from: from || process.env['EMAIL_FROM'],
-            to,
-            subject,
-            html
-        });
+        try {
+
+            const info = await transporter.sendMail({
+                from: from || process.env['EMAIL_FROM'],
+                to: [to],
+                subject,
+                html
+            });
+
+            console.log('EMAIL SENT:', info);
+
+            return info;
+
+        } catch (err) {
+
+            console.error('RESEND SMTP ERROR:', err);
+            throw err;
+        }
     }
 
     // Default SMTP fallback
