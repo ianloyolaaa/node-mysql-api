@@ -6,6 +6,6 @@
         "password": "",
         "database": "node_mysql_api"
     },
-    "secret": "SUPER_SECRET_KEY_REPLACE_ME_IN_PRODUCTION",
-    "emailFrom": "info@my-node-api.com"  
+    "secret": "supersecretkey123",
+    "emailFrom": "onboarding@resend.dev"  
 }
